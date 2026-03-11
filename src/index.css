@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans", Arial, Helvetica, sans-serif;
+  --color-gov-blue: #0b3d91;
+  --color-gov-blue-light: #1e5aa5;
+  --color-gov-text: #222222;
+  --color-gov-border: #dcdcdc;
+}
+
+@layer base {
+  body {
+    @apply font-sans text-gov-text bg-white;
+  }
+}
+
+.gov-panel {
+  @apply bg-white border border-gov-border rounded-none shadow-none;
+}
+
+.gov-title {
+  @apply text-lg font-bold text-gov-blue border-b border-gov-border pb-2 mb-4;
+}
+
+.gov-button {
+  @apply bg-gov-blue text-white px-4 py-2 rounded-none font-medium hover:bg-gov-blue-light transition-colors uppercase text-sm;
+}
