@@ -138,58 +138,88 @@ async function finalizeProcessing(filePath: string, filename: string, data: any,
     delete rowData.formType;
 
     // Dynamic Column Management
-    const existingHeaders: string[] = [];
-    if (worksheet.rowCount > 0) {
-      const headerRow = worksheet.getRow(1);
-      headerRow.eachCell({ includeEmpty: true }, (cell) => {
-        existingHeaders.push(cell.value ? cell.value.toString() : "");
-      });
-    }
-
     const currentKeys = Object.keys(rowData);
-    let headersUpdated = false;
-
-    if (worksheet.rowCount === 0) {
-      worksheet.columns = currentKeys.map(key => ({ header: key, key: key, width: 20 }));
-      headersUpdated = true;
-    } else {
-      currentKeys.forEach(key => {
-        if (!existingHeaders.includes(key)) {
-          existingHeaders.push(key);
-          headersUpdated = true;
-        }
-      });
-
-      if (headersUpdated) {
-        worksheet.columns = existingHeaders.map(h => ({ header: h, key: h, width: 20 }));
+    
+    // Try to recover columns if they are not set (common when reading existing file)
+    if (!worksheet.columns || worksheet.columns.length === 0) {
+      if (worksheet.rowCount > 0) {
         const headerRow = worksheet.getRow(1);
-        existingHeaders.forEach((h, i) => {
-          headerRow.getCell(i + 1).value = h;
+        const recoveredColumns: any[] = [];
+        headerRow.eachCell({ includeEmpty: false }, (cell) => {
+          let val = "";
+          if (cell.value) {
+            if (typeof cell.value === 'object' && 'text' in (cell.value as any)) {
+              val = (cell.value as any).text.toString();
+            } else {
+              val = cell.value.toString();
+            }
+          }
+          if (val && val !== "[object Object]") {
+            recoveredColumns.push({ header: val, key: val, width: 20 });
+          }
         });
-        headerRow.commit();
+        worksheet.columns = recoveredColumns;
       }
     }
 
+    const existingColumns = worksheet.columns || [];
+    const existingKeys = new Set(existingColumns.map(c => c.key));
+    let updatedColumns = [...existingColumns];
+    let headersChanged = false;
+
+    currentKeys.forEach(key => {
+      if (key && !existingKeys.has(key)) {
+        updatedColumns.push({ header: key, key: key, width: 20 });
+        existingKeys.add(key);
+        headersChanged = true;
+      }
+    });
+
+    if (headersChanged || worksheet.rowCount === 0) {
+      worksheet.columns = updatedColumns;
+      // Ensure header row is written if it's a new sheet or headers changed
+      const headerRow = worksheet.getRow(1);
+      updatedColumns.forEach((col, i) => {
+        if (col.header) {
+          headerRow.getCell(i + 1).value = col.header.toString();
+        }
+      });
+      headerRow.commit();
+    }
+
     const row = worksheet.addRow(rowData);
+    row.commit();
     
     if (photoFileName) {
-      const photoLinkCell = row.getCell("Photo Link");
-      photoLinkCell.value = { 
-        text: "Open Photo", 
-        hyperlink: `${baseUrl}/photos/${photoFileName}`,
-        tooltip: "Click to open photo"
-      };
-      photoLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+      try {
+        const photoLinkCell = row.getCell("Photo Link");
+        if (photoLinkCell) {
+          photoLinkCell.value = { 
+            text: "Open Photo", 
+            hyperlink: `${baseUrl}/photos/${photoFileName}`,
+            tooltip: "Click to open photo"
+          };
+          photoLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+        }
+      } catch (e) {
+        console.warn("Could not set Photo Link in Excel:", e);
+      }
     }
 
     if (signatureFileName) {
-      const signLinkCell = row.getCell("Signature Link");
-      signLinkCell.value = { 
-        text: "Open Signature", 
-        hyperlink: `${baseUrl}/signatures/${signatureFileName}`,
-        tooltip: "Click to open signature"
-      };
-      signLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+      try {
+        const signLinkCell = row.getCell("Signature Link");
+        if (signLinkCell) {
+          signLinkCell.value = { 
+            text: "Open Signature", 
+            hyperlink: `${baseUrl}/signatures/${signatureFileName}`,
+            tooltip: "Click to open signature"
+          };
+          signLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+        }
+      } catch (e) {
+        console.warn("Could not set Signature Link in Excel:", e);
+      }
     }
 
     await workbook.xlsx.writeFile(sessionExcelPath);
@@ -217,9 +247,15 @@ app.post("/api/upload", upload.single("document"), async (req, res) => {
     return res.status(400).json({ error: "No file uploaded" });
   }
 
-  db.prepare("UPDATE stats SET total_uploaded = total_uploaded + 1 WHERE id = 1").run();
-  await finalizeProcessing(file.path, file.originalname, extractedData, sessionId);
-  res.json({ message: "File processed successfully" });
+  try {
+    db.prepare("UPDATE stats SET total_uploaded = total_uploaded + 1 WHERE id = 1").run();
+    await finalizeProcessing(file.path, file.originalname, extractedData, sessionId);
+    res.json({ message: "File processed successfully" });
+  } catch (error) {
+    console.error("Error processing upload:", error);
+    db.prepare("INSERT INTO activity_log (filename, status, session_id) VALUES (?, ?, ?)").run(file?.originalname || "unknown", "Processing Failed", sessionId);
+    res.status(500).json({ error: "Failed to process document" });
+  }
 });
 
 app.get("/api/stats", (req, res) => {
@@ -267,18 +303,27 @@ app.post("/api/clear-logs", (req, res) => {
 });
 
 async function startServer() {
+  console.log("Starting server initialization...");
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    try {
+      console.log("Initializing Vite server...");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+      console.log("Vite middleware attached.");
+    } catch (viteError) {
+      console.error("Failed to initialize Vite server:", viteError);
+    }
   } else {
+    console.log("Serving production build from dist/");
     app.use(express.static("dist"));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 

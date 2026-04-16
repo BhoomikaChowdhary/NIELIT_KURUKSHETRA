@@ -1,5 +1,6 @@
 {
-  "name": "NIELIT Intelligent Document Processing System",
+  "name": "NIELIT Document Processing System",
   "description": "AI-powered document digitization and data extraction platform for government records, simulating a NIELIT internal tool.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }

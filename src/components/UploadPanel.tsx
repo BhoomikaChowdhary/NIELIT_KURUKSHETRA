@@ -45,7 +45,6 @@ export default function UploadPanel({ onUploadSuccess }: { onUploadSuccess: () =
     const sessionId = `session_${Date.now()}`;
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-    const model = "gemini-3-flash-preview";
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -66,22 +65,7 @@ export default function UploadPanel({ onUploadSuccess }: { onUploadSuccess: () =
           TASK 2: FIELD EXTRACTION
           Extract ALL identifiable fields present in the form. 
           Common fields to look for:
-          - Course Name
-          - Name (Full Name)
-          - Father Name
-          - Mother Name
-          - Date of Birth
-          - Gender
-          - Qualification
-          - Category
-          - Religion
-          - Aadhaar Number
-          - APAAR ID
-          - Mobile Number
-          - Email
-          - Address
-          - PIN
-          - Employment Status
+          - Course Name, Name, Father Name, Mother Name, Date of Birth, Gender, Qualification, Category, Religion, Aadhaar Number, APAAR ID, Mobile Number, Email, Address, PIN, Employment Status
           
           TASK 3: BOUNDING BOXES
           - Identify the bounding box of the passport photograph.
@@ -94,7 +78,7 @@ export default function UploadPanel({ onUploadSuccess }: { onUploadSuccess: () =
         `;
 
         const response = await ai.models.generateContent({
-          model,
+          model: "gemini-3-flash-preview",
           contents: [
             {
               parts: [
@@ -150,7 +134,7 @@ export default function UploadPanel({ onUploadSuccess }: { onUploadSuccess: () =
         const extractedData = JSON.parse(response.text);
 
         if (!extractedData.isGovernmentForm) {
-          setError(`File "${file.name}" is not recognized as a valid government application form. Skipping...`);
+          console.warn(`File "${file.name}" is not recognized as a valid government application form. Skipping...`);
           setProcessedCount(prev => prev + 1);
           continue;
         }
