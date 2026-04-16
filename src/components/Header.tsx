@@ -6,10 +6,14 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-center">
         <div className="flex items-center space-x-4">
           <img 
-            src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Emblem_of_India.svg/1200px-Emblem_of_India.svg.png" 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Emblem_of_India.svg/960px-Emblem_of_India.svg.png" 
             alt="Emblem of India" 
-            className="h-16 w-auto"
+            className="h-16 w-auto object-contain"
             referrerPolicy="no-referrer"
+            loading="eager"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Seal_of_the_Government_of_India.svg/200px-Seal_of_the_Government_of_India.svg.png";
+            }}
           />
           <div className="border-l-2 border-gray-300 pl-4">
             <h1 className="text-sm font-bold text-gray-800 uppercase leading-tight">
